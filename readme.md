@@ -2,9 +2,8 @@
 
 > React hook that persist data in `localStorage`
 
-[![Downloads](https://img.shields.io/npm/dm/use-local-storage-state)](https://www.npmjs.com/package/use-local-storage-state)
+[![Downloads](https://img.shields.io/npm/dm/use-local-storage-state)](https://npm.chart.dev/use-local-storage-state)
 [![Gzipped Size](https://img.shields.io/bundlephobia/minzip/use-local-storage-state)](https://bundlephobia.com/result?p=use-local-storage-state)
-[![Test Coverage](https://img.shields.io/codeclimate/coverage/astoilkov/use-local-storage-state)](https://codeclimate.com/github/astoilkov/use-local-storage-state/test_coverage)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/astoilkov/use-local-storage-state/main.yml?branch=main)](https://github.com/astoilkov/use-local-storage-state/actions/workflows/main.yml)
 
 ## Install
@@ -21,10 +20,11 @@ npm install use-local-storage-state@17
 
 ## Why
 
-- Actively maintained for the past 3 years — see [contributors](https://github.com/astoilkov/use-local-storage-state/graphs/contributors) page.
+- Actively maintained for the past 4 years — see [contributors](https://github.com/astoilkov/use-local-storage-state/graphs/contributors) page.
 - Production ready.
-- React 18 concurrent rendering support.
+- 689 B (brotlied).
 - SSR support.
+- Works with React 18 concurrent rendering and React 19.
 - Handles the `Window` [`storage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/storage_event) event and updates changes across browser tabs, windows, and iframe's. Disable with `storageSync: false`.
 - In-memory fallback when `localStorage` throws an error and can't store the data. Provides a `isPersistent` API to let you notify the user their data isn't currently being stored.
 - Aiming for high-quality with [my open-source principles](https://astoilkov.com/my-open-source-principles).
@@ -42,10 +42,8 @@ export default function Todos() {
 ```
 
 <details>
-<summary>Todo list example + CodeSandbox link</summary>
+<summary>Todo list example</summary>
 <p></p>
-
-You can experiment with the example [here](https://codesandbox.io/s/todos-example-use-local-storage-state-tzbfhl?file=/src/App.tsx).
 
 ```tsx
 import React, { useState } from 'react'
@@ -167,6 +165,14 @@ Default: `undefined`
 
 The default value. You can think of it as the same as `useState(defaultValue)`.
 
+#### `options.defaultServerValue`
+
+Type: `any`
+
+Default: `undefined`
+
+The default value while server-rendering and hydrating. If not set, it will use `defaultValue` option instead. Set only if you want it to be different than the client value.
+
 #### `options.storageSync`
 
 Type: `boolean`
@@ -185,4 +191,7 @@ JSON does not serialize `Date`, `Regex`, or `BigInt` data.  You can pass in [sup
 
 ## Related
 
+- [`use-storage-state`](https://github.com/astoilkov/use-storage-state) — Supports `localStorage`, `sessionStorage`, and any other [`Storage`](https://developer.mozilla.org/en-US/docs/Web/API/Storage) compatible API.
 - [`use-session-storage-state`](https://github.com/astoilkov/use-session-storage-state) — A clone of this library but for `sessionStorage`.
+- [`use-db`](https://github.com/astoilkov/use-db) — Similar to this hook but for `IndexedDB`.
+- [`local-db-storage`](https://github.com/astoilkov/local-db-storage) — Tiny wrapper around `IndexedDB` that mimics `localStorage` API.

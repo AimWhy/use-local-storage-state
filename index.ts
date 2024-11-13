@@ -1,5 +1,7 @@
-import useLocalStorageState from './src/useLocalStorageState'
-import type { LocalStorageOptions, LocalStorageState } from './src/useLocalStorageState'
+import useLocalStorageState, {
+    type LocalStorageState,
+    type LocalStorageOptions,
+} from './src/useLocalStorageState.js'
 
 export default useLocalStorageState
 

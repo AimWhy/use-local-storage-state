@@ -1,17 +1,11 @@
 {
     "compilerOptions": {
-        "target": "ES6",
-        "module": "CommonJS",
+        "target": "ES2020",
+        "module": "NodeNext",
         "jsx": "react",
         "esModuleInterop": true,
-        // From what I understand while reading the docs "classic" was introduced first and "classic" is by
-        // default(except when "module": "commonjs") because of backwards compatibility.
-        //
-        // From the docs: "node module resolution is the most-commonly used in the TypeScript community and is
-        // recommended for most projects."
-        "moduleResolution": "node",
-
         "declaration": true,
+        "moduleResolution": "nodenext",
 
         // strict options ensuring more stable code
         "strict": true,
@@ -22,7 +16,7 @@
         "noFallthroughCasesInSwitch": true,
         "forceConsistentCasingInFileNames": true,
 
-        "types": ["node", "jest"],
+        "types": ["node"],
 
         // - ℹ️ https://www.typescriptlang.org/tsconfig#isolatedModules
         // - 😃 Deno requires "isolatedModules" to be set to `true`

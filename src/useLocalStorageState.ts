@@ -1,11 +1,12 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
-// in memory fallback used then `localStorage` throws an error
+// in memory fallback used when `localStorage` throws an error
 export const inMemoryData = new Map<string, unknown>()
 
 export type LocalStorageOptions<T> = {
     defaultValue?: T | (() => T)
+    defaultServerValue?: T | (() => T)
     storageSync?: boolean
     serializer?: {
         stringify: (value: unknown) => string
@@ -26,7 +27,7 @@ export type LocalStorageState<T> = [
 
 export default function useLocalStorageState(
     key: string,
-    options?: Omit<LocalStorageOptions<unknown>, 'defaultValue'>,
+    options?: LocalStorageOptions<undefined>,
 ): LocalStorageState<unknown>
 export default function useLocalStorageState<T>(
     key: string,
@@ -40,75 +41,35 @@ export default function useLocalStorageState<T = undefined>(
     key: string,
     options?: LocalStorageOptions<T | undefined>,
 ): LocalStorageState<T | undefined> {
-    // istanbul ignore next
-    if (useSyncExternalStore === undefined) {
-        throw new TypeError(
-            `You are using React 17 or below. Install with "npm install use-local-storage-state@17".`,
-        )
-    }
-
-    const [defaultValue] = useState(options?.defaultValue)
-
-    // SSR support
-    // - on the server, return a constant value
-    // - this makes the implementation simpler and smaller because the `localStorage` object is
-    //   `undefined` on the server
-    if (typeof window === 'undefined') {
-        return [
-            defaultValue,
-            (): void => {},
-            {
-                isPersistent: true,
-                removeItem: (): void => {},
-            },
-        ]
-    }
-
     const serializer = options?.serializer
-    // disabling ESLint because the above if statement can be executed only on the server. the value
-    // of `window` can't change between calls.
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useBrowserLocalStorageState(
+    const [defaultValue] = useState(options?.defaultValue)
+    const [defaultServerValue] = useState(options?.defaultServerValue)
+    return useLocalStorage(
         key,
         defaultValue,
+        defaultServerValue,
         options?.storageSync,
         serializer?.parse,
         serializer?.stringify,
     )
 }
 
-function useBrowserLocalStorageState<T>(
+function useLocalStorage<T>(
     key: string,
     defaultValue: T | undefined,
+    defaultServerValue: T | undefined,
     storageSync: boolean = true,
     parse: (value: string) => unknown = parseJSON,
     stringify: (value: unknown) => string = JSON.stringify,
 ): LocalStorageState<T | undefined> {
-    // store default value in localStorage:
-    // - initial issue: https://github.com/astoilkov/use-local-storage-state/issues/26
-    //   issues that were caused by incorrect initial and secondary implementations:
-    //   - https://github.com/astoilkov/use-local-storage-state/issues/30
-    //   - https://github.com/astoilkov/use-local-storage-state/issues/33
-    if (
-        !inMemoryData.has(key) &&
-        defaultValue !== undefined &&
-        goodTry(() => localStorage.getItem(key)) === null
-    ) {
-        // reasons for `localStorage` to throw an error:
-        // - maximum quota is exceeded
-        // - under Mobile Safari (since iOS 5) when the user enters private mode
-        //   `localStorage.setItem()` will throw
-        // - trying to access localStorage object when cookies are disabled in Safari throws
-        //   "SecurityError: The operation is insecure."
-        goodTry(() => localStorage.setItem(key, stringify(defaultValue)))
-    }
-
     // we keep the `parsed` value in a ref because `useSyncExternalStore` requires a cached version
-    const storageValue = useRef<{ item: string | null; parsed: T | undefined }>({
-        item: null,
-        parsed: defaultValue,
+    const storageItem = useRef<{ string: string | null; parsed: T | undefined }>({
+        string: null,
+        parsed: undefined,
     })
+
     const value = useSyncExternalStore(
+        // useSyncExternalStore.subscribe
         useCallback(
             (onStoreChange) => {
                 const onChange = (localKey: string): void => {
@@ -124,40 +85,56 @@ function useBrowserLocalStorageState<T>(
             [key],
         ),
 
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // useSyncExternalStore.getSnapshot
         () => {
-            const item = goodTry(() => localStorage.getItem(key)) ?? null
+            const string = goodTry(() => localStorage.getItem(key)) ?? null
 
             if (inMemoryData.has(key)) {
-                storageValue.current = {
-                    item,
-                    parsed: inMemoryData.get(key) as T | undefined,
-                }
-            } else if (item !== storageValue.current.item) {
+                storageItem.current.parsed = inMemoryData.get(key) as T | undefined
+            } else if (string !== storageItem.current.string) {
                 let parsed: T | undefined
 
                 try {
-                    parsed = item === null ? defaultValue : (parse(item) as T)
+                    parsed = string === null ? defaultValue : (parse(string) as T)
                 } catch {
                     parsed = defaultValue
                 }
 
-                storageValue.current = {
-                    item,
-                    parsed,
-                }
+                storageItem.current.parsed = parsed
             }
 
-            return storageValue.current.parsed
+            storageItem.current.string = string
+
+            // store default value in localStorage:
+            // - initial issue: https://github.com/astoilkov/use-local-storage-state/issues/26
+            //   issues that were caused by incorrect initial and secondary implementations:
+            //   - https://github.com/astoilkov/use-local-storage-state/issues/30
+            //   - https://github.com/astoilkov/use-local-storage-state/issues/33
+            if (defaultValue !== undefined && string === null) {
+                // reasons for `localStorage` to throw an error:
+                // - maximum quota is exceeded
+                // - under Mobile Safari (since iOS 5) when the user enters private mode
+                //   `localStorage.setItem()` will throw
+                // - trying to access localStorage object when cookies are disabled in Safari throws
+                //   "SecurityError: The operation is insecure."
+                // eslint-disable-next-line no-console
+                goodTry(() => {
+                    const string = stringify(defaultValue)
+                    localStorage.setItem(key, string)
+                    storageItem.current = { string, parsed: defaultValue }
+                })
+            }
+
+            return storageItem.current.parsed
         },
 
-        // istanbul ignore next
-        () => defaultValue,
+        // useSyncExternalStore.getServerSnapshot
+        () => defaultServerValue ?? defaultValue,
     )
     const setState = useCallback(
         (newValue: SetStateAction<T | undefined>): void => {
             const value =
-                newValue instanceof Function ? newValue(storageValue.current.parsed) : newValue
+                newValue instanceof Function ? newValue(storageItem.current.parsed) : newValue
 
             // reasons for `localStorage` to throw an error:
             // - maximum quota is exceeded
@@ -177,6 +154,13 @@ function useBrowserLocalStorageState<T>(
         },
         [key, stringify],
     )
+    const removeItem = useCallback(() => {
+        goodTry(() => localStorage.removeItem(key))
+
+        inMemoryData.delete(key)
+
+        triggerCallbacks(key)
+    }, [key])
 
     // - syncs change across tabs, windows, iframes
     // - the `storage` event is called only in all tabs, windows, iframe's except the one that
@@ -187,7 +171,7 @@ function useBrowserLocalStorageState<T>(
         }
 
         const onStorage = (e: StorageEvent): void => {
-            if (e.storageArea === goodTry(() => localStorage) && e.key === key) {
+            if (e.key === key && e.storageArea === goodTry(() => localStorage)) {
                 triggerCallbacks(key)
             }
         }
@@ -203,16 +187,10 @@ function useBrowserLocalStorageState<T>(
             setState,
             {
                 isPersistent: value === defaultValue || !inMemoryData.has(key),
-                removeItem(): void {
-                    goodTry(() => localStorage.removeItem(key))
-
-                    inMemoryData.delete(key)
-
-                    triggerCallbacks(key)
-                },
+                removeItem,
             },
         ],
-        [key, setState, value, defaultValue],
+        [key, setState, value, defaultValue, removeItem],
     )
 }
 
@@ -233,7 +211,5 @@ function parseJSON(value: string): unknown {
 function goodTry<T>(tryFn: () => T): T | undefined {
     try {
         return tryFn()
-    } catch {
-        return undefined
-    }
+    } catch {}
 }

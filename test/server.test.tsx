@@ -1,11 +1,8 @@
-/**
- * @jest-environment node
- */
-
-import util from 'util'
+import util from 'node:util'
 import ReactDOM from 'react-dom/server'
 import React, { MutableRefObject } from 'react'
-import useLocalStorageState from '../src/useLocalStorageState'
+import useLocalStorageState from '../src/useLocalStorageState.js'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 function renderHookOnServer<T>(useHook: () => T): { result: MutableRefObject<T> } {
     const result: MutableRefObject<T> = {
@@ -37,7 +34,7 @@ beforeEach(() => {
     // - "Warning: Cannot update a component (`Component`) while rendering a different component
     //   (`Component`). To locate the bad setState() call inside `Component`, follow the stack trace
     //   as described in https://reactjs.org/link/setstate-in-render"
-    jest.spyOn(console, 'error').mockImplementation((format: string, ...args: any[]) => {
+    vi.spyOn(console, 'error').mockImplementation((format: string, ...args: any[]) => {
         throw new Error(util.format(format, ...args))
     })
 })
@@ -62,13 +59,38 @@ describe('useLocalStorageState()', () => {
                 }),
             )
 
-            expect(result.current[0]).toEqual(['first', 'second'])
+            const [todos] = result.current
+            expect(todos).toStrictEqual(['first', 'second'])
         })
 
         test('returns default value on the server', () => {
             const { result } = renderHookOnServer(() => useLocalStorageState('todos'))
 
-            expect(result.current[0]).toEqual(undefined)
+            const [todos] = result.current
+            expect(todos).toBe(undefined)
+        })
+
+        test('returns defaultServerValue on the server', () => {
+            const { result } = renderHookOnServer(() =>
+                useLocalStorageState('todos', {
+                    defaultServerValue: ['third', 'forth'],
+                }),
+            )
+
+            const [todos] = result.current
+            expect(todos).toStrictEqual(['third', 'forth'])
+        })
+
+        test('defaultServerValue should overwrite defaultValue on the server', () => {
+            const { result } = renderHookOnServer(() =>
+                useLocalStorageState('todos', {
+                    defaultValue: ['first', 'second'],
+                    defaultServerValue: ['third', 'forth'],
+                }),
+            )
+
+            const [todos] = result.current
+            expect(todos).toStrictEqual(['third', 'forth'])
         })
 
         test(`setValue() on server doesn't throw`, () => {
@@ -101,6 +123,22 @@ describe('useLocalStorageState()', () => {
             )
 
             expect(result.current[2].isPersistent).toBe(true)
+        })
+
+        test('can call mutation methods without throwing and without actually mutating the data', () => {
+            const { result } = renderHookOnServer(() => {
+                const hook = useLocalStorageState('number', {
+                    defaultValue: 0,
+                })
+                const [, setValue, { removeItem }] = hook
+                setValue(1)
+                removeItem()
+                return hook
+            })
+            const hook = result.current
+
+            const [value] = hook
+            expect(value).toBe(0)
         })
     })
 })
